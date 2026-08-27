@@ -1,0 +1,44 @@
+name: Deploy App
+on:
+  push:
+    branches:
+      - main
+env:
+  WDCLI_CLIENT_ID: ${{ secrets.WDCLI_CLIENT_ID }}
+  WDCLI_CLIENT_SECRET: ${{ secrets.WDCLI_CLIENT_SECRET }}
+  WDCLI_TENANT_CLIENT_ID: ${{ secrets.WDCLI_TENANT_CLIENT_ID }}
+  WDCLI_TENANT_CLIENT_SECRET: ${{ secrets.WDCLI_TENANT_CLIENT_SECRET }}
+  WDCLI_TENANT_ALIAS: orgname_wcpdev1 # TODO update
+  WDCLI_APP_REFERENCE_ID: PG_testApp_xxxxxx # TODO update
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract and setup wdcli
+        run: |
+          tar -xzf wdcli-installer-linux-x64-v1.7.25.tar.gz # TODO ensure you include the WDCLI package in your git repo's root folder, and update this line to match the filename
+          echo "$PWD/wdcli/bin" >> $GITHUB_PATH
+      - name: Authenticate with system user
+        run: wdcli auth login --system-user
+      - name: Upload app
+        run: wdcli app upload apps/$WDCLI_APP_REFERENCE_ID --ci
+      - name: Get tenant access token
+        id: token
+        run: |
+          CREDENTIALS=$(printf '%s' "$WDCLI_TENANT_CLIENT_ID:$WDCLI_TENANT_CLIENT_SECRET" | base64 | tr -d '\n')
+          
+          RESPONSE=$(curl --fail-with-body -sS -X POST https://auth.api.workday.com/v1/token \
+            -H "Authorization: Basic $CREDENTIALS" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials&tenant_alias=$WDCLI_TENANT_ALIAS")
+          echo "$RESPONSE"
+          
+          ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
+          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+      - name: Set tenant access token in config
+        run: |
+          wdcli config set defaultTenantAlias $WDCLI_TENANT_ALIAS
+          wdcli config set wcpTenantAccessToken ${{ steps.token.outputs.access_token }}
+      - name: Deploy app
+        run: wdcli app deploy $WDCLI_APP_REFERENCE_ID --latest-version --ci -t $WDCLI_TENANT_ALIAS

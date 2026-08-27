@@ -1,44 +1,72 @@
-name: Deploy App
+# .github/workflows/deploy-to-dev.yml
+name: Deploy App to Workday Dev Tenant
+
 on:
   push:
     branches:
-      - main
-env:
-  WDCLI_CLIENT_ID: ${{ secrets.WDCLI_CLIENT_ID }}
-  WDCLI_CLIENT_SECRET: ${{ secrets.WDCLI_CLIENT_SECRET }}
-  WDCLI_TENANT_CLIENT_ID: ${{ secrets.WDCLI_TENANT_CLIENT_ID }}
-  WDCLI_TENANT_CLIENT_SECRET: ${{ secrets.WDCLI_TENANT_CLIENT_SECRET }}
-  WDCLI_TENANT_ALIAS: orgname_wcpdev1 # TODO update
-  WDCLI_APP_REFERENCE_ID: PG_testApp_xxxxxx # TODO update
+      - main # Triggers the workflow automatically on commits or merges to the main branch
+  workflow_dispatch: # Allows you to trigger this deployment manually from the GitHub Actions tab
+
 jobs:
-  deploy:
+  deploy-workday-app:
+    name: Build and Deploy to Workday Dev Environment
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Extract and setup wdcli
+      # Step 1: Checkout the repository code onto the runner
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1 # Fetch single commit for speed and efficiency
+
+      # Step 2: Set up Node.js environment (needed for the WDCLI execution environment)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Step 3: Install the Workday CLI (WDCLI)
+      - name: Install Workday CLI
         run: |
-          tar -xzf wdcli-installer-linux-x64-v1.7.25.tar.gz # TODO ensure you include the WDCLI package in your git repo's root folder, and update this line to match the filename
-          echo "$PWD/wdcli/bin" >> $GITHUB_PATH
-      - name: Authenticate with system user
-        run: wdcli auth login --system-user
-      - name: Upload app
-        run: wdcli app upload apps/$WDCLI_APP_REFERENCE_ID --ci
-      - name: Get tenant access token
-        id: token
-        run: |
-          CREDENTIALS=$(printf '%s' "$WDCLI_TENANT_CLIENT_ID:$WDCLI_TENANT_CLIENT_SECRET" | base64 | tr -d '\n')
+          echo "Installing Workday CLI globally..."
+          # Install the official Workday CLI package globally
+          npm install -g @workday/cli
           
-          RESPONSE=$(curl --fail-with-body -sS -X POST https://auth.api.workday.com/v1/token \
-            -H "Authorization: Basic $CREDENTIALS" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "grant_type=client_credentials&tenant_alias=$WDCLI_TENANT_ALIAS")
-          echo "$RESPONSE"
-          
-          ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token')
-          echo "access_token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
-      - name: Set tenant access token in config
+          # Verify installation path and command availability
+          wd --version
+
+      # Step 4: Programmatically Authenticate with Workday using System User Credentials
+      # This utilizes GitHub Secrets to perform a secure, non-interactive login
+      - name: Authenticate to Workday
+        env:
+          WD_CLIENT_ID: ${{ secrets.WD_CLIENT_ID }}
+          WD_CLIENT_SECRET: ${{ secrets.WD_CLIENT_SECRET }}
         run: |
-          wdcli config set defaultTenantAlias $WDCLI_TENANT_ALIAS
-          wdcli config set wcpTenantAccessToken ${{ steps.token.outputs.access_token }}
-      - name: Deploy app
-        run: wdcli app deploy $WDCLI_APP_REFERENCE_ID --latest-version --ci -t $WDCLI_TENANT_ALIAS
+          echo "Authenticating programmatically via WDCLI..."
+          # Authenticate using the client credentials of your configured System User
+          wd auth login \
+            --client-id "$WD_CLIENT_ID" \
+            --client-secret "$WD_CLIENT_SECRET" \
+            --non-interactive
+
+      # Step 5: Deploy the App to your Workday Developer Tenant
+      - name: Deploy App to Workday
+        env:
+          WD_TENANT_ALIAS: ${{ secrets.WD_TENANT_ALIAS }}
+          WD_ACCOUNT: ${{ secrets.WD_ACCOUNT }}
+        run: |
+          echo "Initiating app deployment..."
+          # Deploy the Workday App using the active session and required target variables.
+          # Note: The CLI reads your local 'app-manifest.json' automatically to determine the app identity.
+          wd app deploy \
+            --tenant-alias "$WD_TENANT_ALIAS" \
+            --account "$WD_ACCOUNT" \
+            --non-interactive
+
+      # Step 6: Secure Logout to clear active sessions on the runner
+      # This step ALWAYS runs, even if the deployment fails, to prevent token leakage
+      - name: Secure Logout
+        if: always()
+        run: |
+          echo "Logging out and clearing active CLI session..."
+          wd auth logout

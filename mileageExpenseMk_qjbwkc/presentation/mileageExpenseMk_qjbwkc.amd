@@ -1,0 +1,145 @@
+{
+  "appProperties": [
+    {
+      "key": "isDebug",
+      "value": "false"
+    },
+    {
+      "key": "mapVendorKey",
+      "value": "AIzaSyBhKs5fF2kEH8R4uqD69Zv6frMNitAw0HM"
+    },
+    {
+      "key": "unit",
+      "value": "imperial"
+    },
+    {
+      "key": "gmapRegion",
+      "value": "US"
+    },
+    {
+      "key": "gmapMode",
+      "value": "driving"
+    },
+    {
+      "key": "excludeEndPoints",
+      "value": "false"
+    },
+    {
+      "key": "mileageExpenseItemWid",
+      "value": "577dfa9b3e2a498e99e8d9ff5c180499"
+    },
+    {
+      "key": "mileageRate",
+      "value": ".56"
+    },
+    {
+      "key": "expItemCurrency",
+      "value": "USD"
+    }
+  ],
+  "flowDefinitions": [
+    {
+      "id": "mileageCalculator",
+      "name": "mileageCalculator",
+      "flowSteps": [
+        {
+          "id": "start",
+          "transitions": [
+            {
+              "order": "a",
+              "value": "createExpense",
+              "condition": "true"
+            }
+          ],
+          "startsFlow": true,
+          "taskId": "root"
+        },
+        {
+          "id": "createExpense",
+          "transitions": [
+            {
+              "order": "a",
+              "value": "confirmation",
+              "condition": "<% queryParams.submitConfirmation == '1' %>"
+            },
+            {
+              "order": "b",
+              "value": "searchAgain",
+              "condition": "<% queryParams.searchAgain == '1' %>"
+            }
+          ],
+          "taskId": "createExpense"
+        },
+        {
+          "id": "searchAgain",
+          "endsFlow": true,
+          "taskId": "root"
+        },
+        {
+          "id": "confirmation",
+          "endsFlow": true,
+          "taskId": "confirmation"
+        }
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "root",
+      "routingPattern": "/",
+      "page": {
+        "id": "home"
+      }
+    },
+    {
+      "id": "createExpense",
+      "routingPattern": "createExpense",
+      "page": {
+        "id": "createExpense"
+      }
+    },
+    {
+      "id": "confirmation",
+      "routingPattern": "confirmation",
+      "page": {
+        "id": "confirmation"
+      }
+    },
+    {
+      "id": "errorPage",
+      "routingPattern": "/errorPage",
+      "page": {
+        "id": "errorPage"
+      }
+    },
+    {
+      "id": "EditPageWithQuestionAndInstanceList",
+      "routingPattern": "/editPageWithQuestionAndInstanceList",
+      "page": {
+        "id": "EditPageWithQuestionAndInstanceList"
+      }
+    },
+    {
+      "id": "questionaire",
+      "routingPattern": "/questionaire",
+      "page": {
+        "id": "questionaire"
+      }
+    }
+  ],
+  "applicationId": "mileageExpenseMk_qjbwkc",
+  "dataProviders": [
+    {
+      "key": "gmaps",
+      "value": "https://maps.googleapis.com/maps/api/"
+    },
+    {
+      "key": "expense",
+      "value": "https://api.workday.com/expense/v1"
+    },
+    {
+      "key": "workday-common",
+      "value": "https://api.workday.com/common/v1"
+    }
+  ]
+}

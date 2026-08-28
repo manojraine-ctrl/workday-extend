@@ -1,0 +1,256 @@
+{
+  "id": "home",
+  "endPoints": [
+    {
+      "baseUrlType": "workday-common",
+      "name": "userInfo",
+      "authType": "sso",
+      "url": "/userInfo"
+    }
+  ],
+  "outboundData": {
+    "outboundEndPoints": [
+      {
+        "name": "viaList",
+        "type": "outboundVariable",
+        "variableScope": "flow"
+      },
+      {
+        "name": "markerList",
+        "type": "outboundVariable",
+        "variableScope": "flow"
+      },
+      {
+        "type": "outboundVariable",
+        "name": "transitionOutboundVars",
+        "variableScope": "flow",
+        "values": [
+          {
+            "outboundPath": "departureDate",
+            "value": "<% date:format(departureDate.value, 'yyyy-MM-dd') %>"
+          },
+          {
+            "outboundPath": "searchParamReason",
+            "value": "<% reason.value %>"
+          },
+          {
+            "outboundPath": "mapRegion",
+            "value": "<% userInfo.data[0].locale.substringAfterLast('_') %>"
+          },
+          {
+            "outboundPath": "userCurrency",
+            "value": "<% userInfo.data[0].currency %>"
+          }
+        ]
+      }
+    ],
+    "responseErrorDetail": {
+      "errorSummary": "<% error + '. Once you have successfully fixed the error(s), deploy this app to proceed.' %>",
+      "errors": "<% errors.map(item => { item.error }); %>"
+    }
+  },
+  "presentation": {
+    "title": {
+      "label": "Mileage Expense",
+      "type": "title"
+    },
+    "body": {
+      "type": "section",
+      "children": [
+        {
+          "type": "richText",
+          "value": "<h1><b>Action Required:</b> Please modify the app property value for <i>mapVendorKey</i> in the mileageExpense.amd file. Once you have successfully modified the value(s), deploy this app to begin using it.</h1>",
+          "enabled": false,
+          "render": "<% site.appProperties.mapVendorKey == '<MAP_VENDOR_KEY>' %>"
+        },
+        {
+          "type": "section",
+          "horizontal": true,
+          "columnWidthRatios": [
+            0.8,
+            0.2
+          ],
+          "children": [
+            {
+              "type": "section",
+              "columnWidthRatios": [
+                0.8,
+                0.2
+              ],
+              "render": "<% site.appProperties.mapVendorKey != '<MAP_VENDOR_KEY>' %>",
+              "children": [
+                {
+                  "type": "section",
+                  "horizontal": false,
+                  "columnWidthRatios": [
+                    0.33,
+                    0.33,
+                    0.33
+                  ],
+                  "title": "Expense Report Details",
+                  "children": [
+                    {
+                      "type": "section",
+                      "horizontal": false,
+                      "children": [
+                        {
+                          "type": "date",
+                          "required": "true",
+                          "id": "departureDate",
+                          "label": "Travel Date",
+                          "datePrecision": "DAY",
+                          "value": "<% queryParams.searchAgain == '1' ? queryParams.searchParamDate : date:getTodaysDate(date:getDateTimeZone(userInfo.data[0].timezone)) %>"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "horizontal": false,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "reason",
+                          "label": "Business Purpose",
+                          "required": "true",
+                          "value": "<% queryParams.searchAgain == '1' ? queryParams.searchParamReason : '' %>"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "horizontal": true,
+                  "title": "Map Search Options",
+                  "columnWidthRatios": [
+                    0.33,
+                    0.33,
+                    0.33
+                  ],
+                  "helpText": "Enter the start and final destination for your trip in the below grid. You can include up to 23 waypoints and reorder them as needed.",
+                  "children": [
+                    {
+                      "type": "section",
+                      "children": [
+                        {
+                          "type": "fieldSet",
+                          "children": [
+                            {
+                              "type": "checkBox",
+                              "id": "avoidTolls",
+                              "label": "Avoid Tolls",
+                              "valueOutBinding": "viaList.avoidTolls",
+                              "value": "<% queryParams.searchAgain == '1' ? queryParams.viaList.avoidTolls : '' %>"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "children": [
+                        {
+                          "type": "checkBox",
+                          "id": "avoidHiWay",
+                          "label": "Avoid Highways",
+                          "valueOutBinding": "viaList.avoidHiWay",
+                          "value": "<% queryParams.searchAgain == '1' ? queryParams.viaList.avoidHiWay : '' %>"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "children": [
+                        {
+                          "type": "fieldSet",
+                          "children": [
+                            {
+                              "type": "checkBox",
+                              "id": "roundTrip",
+                              "label": "Round Trip",
+                              "visible": "true",
+                              "value": "<% queryParams.searchAgain == '1' ? queryParams.viaList.roundTrip : 'true' %>",
+                              "valueOutBinding": "viaList.roundTrip"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "horizontal": true,
+                  "columnWidthRatios": [
+                    0.7,
+                    0.3
+                  ],
+                  "label": "Distance Calculator",
+                  "children": [
+                    {
+                      "id": "instruction",
+                      "type": "richText",
+                      "enabled": "false",
+                      "value": "<b><u>Instructions:</u></b> Enter the start and final destination for your trip in the below grid. You can include up to 23 waypoints and reorder them as needed. Please enter the full address on each row to improve accuracy of the distance calculation."
+                    },
+                    {
+                      "type": "section",
+                      "helpText": "testing",
+                      "children": [
+                        {
+                          "type": "grid",
+                          "id": "locationGrid",
+                          "gridType": "LIST",
+                          "showRowMover": "true",
+                          "rowVariableName": "rowData",
+                          "isArrayOutBinding": "true",
+                          "label": "Travel Route",
+                          "rows": "<% queryParams.searchAgain == '1' ? queryParams.viaList.place : [{'item':''},{'item': ''}] %>",
+                          "doNotAdd": "<% size(locationGrid.rows) >= 25 %>",
+                          "doNotRemove": "<% size(locationGrid.rows) <= 2 %>",
+                          "indexVariableName": "rowIndex",
+                          "columns": [
+                            {
+                              "type": "column",
+                              "label": "Waypoints (Addresses)",
+                              "columnId": "1",
+                              "cellTemplate": {
+                                "required": "true",
+                                "type": "text",
+                                "value": "<% rowData.item %>",
+                                "valueOutBinding": "viaList.place[].item",
+                                "id": "location",
+                                "valuesOut": [
+                                  {
+                                    "value": "<% '&markers=label:' + '%7C' + self.value %>",
+                                    "valueOutBinding": "markerList.place[].item"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "editButtons": [
+            {
+              "buttonType": "PRIMARY",
+              "_comment": "Override the text of the OK button to 'Calculate Route'",
+              "label": "Calculate Route",
+              "visible": "<% site.appProperties.mapVendorKey != '<MAP_VENDOR_KEY>' %>",
+              "type": "editButton"
+            }
+          ],
+          "type": "editButtonBar"
+        }
+      ]
+    }
+  }
+}

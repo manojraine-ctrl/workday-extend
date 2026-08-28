@@ -1,0 +1,700 @@
+{
+  "id": "createExpense",
+  "endPoints": [
+    {
+      "name": "distanceCalc",
+      "baseUrlType": "gmaps",
+      "authType": "NOAUTH",
+      "exclude": "<% flowVariables.viaList.roundTrip != true && index == size(flowVariables.viaList.place) - 1  %>",
+      "deferred": "true",
+      "url": "distancematrix/json?mode=driving&units=<% site.appProperties.unit %>&origins=<% origins.urlEncode() %>&destinations=<% (index == size(flowVariables.viaList.place) - 1  && flowVariables.viaList.roundTrip==true) ? flowVariables.viaList.place[0].item.urlEncode() : flowVariables.viaList.place[(index+1)].item.urlEncode() %>&region=<% flowVariables.mapRegion %>&key=<% site.appProperties.mapVendorKey %><% ! empty hiWayParamUrl.value ? hiWayParamUrl.value : '' %><% ! empty tollParamUrl.value ? tollParamUrl.value : '' %>"
+    },
+    {
+      "name": "directionsCalc",
+      "baseUrlType": "gmaps",
+      "authType": "NOAUTH",
+      "deferred": "true",
+      "url": "directions/json?mode=driving&alternatives=false&units=<% site.appProperties.unit %>&origin=<% flowVariables.viaList.place[0].item.urlEncode() %>&destination=<% getDestination() %>&waypoints=<% wayPoints.value.urlEncode() %>&travelmode=driving&region=<% flowVariables.mapRegion %>&key=<% site.appProperties.mapVendorKey %><% ! empty hiWayParamUrl.value ? hiWayParamUrl.value : '' %><% ! empty tollParamUrl.value ? tollParamUrl.value : '' %>"
+    }
+  ],
+  "script": "<%
+
+             var getUnits = function() {
+                 return site.appProperties.unit == 'imperial' ? 'Miles' : Kilometers;
+             };
+
+             var getDestination = function() {
+                 return flowVariables.viaList.roundTrip == true ? flowVariables.viaList.place[0].item.urlEncode() : flowVariables.viaList.place[( size(flowVariables.viaList.place) -1)].item.urlEncode();
+             };
+
+             var getDirectionsData = function() {
+                 var ret = directionsCalc.invoke();
+                 return ret;
+             };
+
+             var getMemo = function() {
+                 var units = getUnits();
+                 var routes = viaGrid.getRows().map( children => {
+                     children.childrenMap.lineNo.childrenMap.origIdText.value + ' ' + (children.childrenMap.personalCol.value > 0 ? '(' + children.childrenMap.personalCol.value + ' Personal ' + units + ')' : '(' +children.childrenMap.businessCol.value + ' ' + units + ')')
+                 }).join(', ');
+                 return 'Purpose:' + reason.value + '. Distance: ' +  viaGrid.getSubtotal('businessCol') + ' ' + getUnits() + '. Route: ' + routes + '.';s
+             };
+
+             var updageGrid = function(item) {
+                 if (item.value == true){
+                     viaGrid.getRows()[item.index].childrenMap.businessCol.value = number:toBigDecimal('0.0', 2, 'DOWN');
+                         viaGrid.getRows()[item.index].childrenMap.personalCol.value = number:toBigDecimal(item.miles, 2, 'DOWN');
+                         viaGrid.getRows()[item.index].childrenMap.expenseAmountCol.value = number:toBigDecimal('0.00', 2, 'DOWN');
+                 } else {
+                     viaGrid.getRows()[item.index].childrenMap.businessCol.value = item.miles;
+                         viaGrid.getRows()[item.index].childrenMap.personalCol.value = number:toBigDecimal('0.0', 2, 'DOWN');
+                         viaGrid.getRows()[item.index].childrenMap.expenseAmountCol.value = number:toBigDecimal(( site.appProperties.mileageRate *  item.miles), 2, 'DOWN');
+                 }
+             };
+
+             %>",
+  "outboundData": {
+    "responseErrorDetail": {
+      "errorSummary": "<% error + '. Once you have successfully fixed the error(s), deploy this app to proceed.' %>",
+      "errors": "<% list:mapAttribute(errors, 'error') %>"
+    },
+    "outboundEndPoints": [
+      {
+        "name": "expMemo",
+        "type": "outboundVariable",
+        "variableScope": "page"
+      },
+      {
+        "_comment": "step 1 create a quick expense ###################################################################",
+        "name": "quickExpense",
+        "url": "/entries",
+        "baseUrlType": "expense",
+        "authType": "sso",
+        "httpMethod": "POST",
+        "exclude": "<% empty submitBtn.value[0] %>",
+        "_exclude": true,
+        "values": [
+          {
+            "outboundPath": "date",
+            "value": "<% travelDate.value %>"
+          },
+          {
+            "outboundPath": "amount.value",
+            "value": "<% viaGrid.getSubtotal('expenseAmountCol') %>"
+          },
+          {
+            "outboundPath": "amount.currency",
+            "value": "<% site.appProperties.expItemCurrency %>"
+          },
+          {
+            "outboundPath": "expenseItem.id",
+            "value": "<% site.appProperties.mileageExpenseItemWid %>"
+          },
+          {
+            "outboundPath": "memo",
+            "value": "<% getMemo() %>"
+          }
+        ]
+      },
+      {
+        "_comment": "Step 2 create an Expense Report Shell ###########################################################",
+        "name": "expenseReport",
+        "url": "/reports",
+        "baseUrlType": "expense",
+        "allowEmptyPayload": "true",
+        "authType": "sso",
+        "httpMethod": "POST",
+        "exclude": "<% empty submitBtn.value[0] ? true : empty quickExpense.id  ||  false %>",
+        "_exclude": true
+      },
+      {
+        "_comment": "Step 3 Insert this quickexpense as a line item if /reports is success #############################",
+        "name": "expenseLine",
+        "url": "/reports/<% expenseReport.id %>/lines",
+        "baseUrlType": "expense",
+        "authType": "sso",
+        "httpMethod": "POST",
+        "exclude": "<% empty submitBtn.value[0] ? true : empty expenseReport.id || empty quickExpense.id %>",
+        "_exclude": true,
+        "values": [
+          {
+            "outboundPath": "quickExpense.id",
+            "value": "<% quickExpense.id %>"
+          }
+        ]
+      },
+      {
+        "_comment": "Outband Variables sent to next page  ############################################################",
+        "type": "outboundVariable",
+        "name": "transitionOutboundVars",
+        "variableScope": "flow",
+        "values": [
+          {
+            "outboundPath": "searchAgain",
+            "value": "<% ! empty searchAgainBtn.value[0] ? searchAgainBtn.value[0] : '0' %>"
+          },
+          {
+            "outboundPath": "submitConfirmation",
+            "value": "<% ! empty submitBtn.value[0] ? submitBtn.value[0] : '0' %>"
+          },
+          {
+            "outboundPath": "searchParamDate",
+            "value": "<% flowVariables.departureDate %>"
+          },
+          {
+            "outboundPath": "searchParam",
+            "value": "<% flowVariables.viaList %>"
+          },
+          {
+            "outboundPath": "memo",
+            "value": "<% getMemo() %>"
+          },
+          {
+            "outboundPath": "quickExpenseResponse",
+            "value": "<% ! empty quickExpense ?  quickExpense : 'N/A' %>"
+          },
+          {
+            "outboundPath": "expenseReportResponse",
+            "value": "<% ! empty expenseReport ? expenseReport : 'N/A' %>"
+          },
+          {
+            "outboundPath": "expenseLineResponse",
+            "value": "<% ! empty expenseLine ? expenseLine : 'N/A'%>"
+          },
+          {
+            "outboundPath": "expenseCode",
+            "value": "<% ! empty quickExpense ? quickExpense.code : 'n/a' %>"
+          },
+          {
+            "outboundPath": "expReportId",
+            "value": "<% ! empty expenseReport ? expenseReport.id : 'n/a' %>"
+          },
+          {
+            "outboundPath": "quickExpenseId",
+            "value": "<% ! empty quickExpense ? quickExpense.id : 'n/a' %>"
+          },
+          {
+            "outboundPath": "expenseFinalAmount",
+            "value": "<% viaGrid.getSubtotal('expenseAmountCol') %>"
+          },
+          {
+            "outboundPath": "expensedDistance",
+            "value": "<% viaGrid.getSubtotal('businessCol') %>"
+          },
+          {
+            "outboundPath": "personalDistance",
+            "value": "<% viaGrid.getSubtotal('personalCol') %>"
+          },
+          {
+            "outboundPath": "totalDistance",
+            "value": "<% viaGrid.getSubtotal('businessCol') + viaGrid.getSubtotal('personalCol') %>"
+          }
+        ]
+      }
+    ]
+  },
+  "presentation": {
+    "body": {
+      "type": "section",
+      "sorted": false,
+      "children": [
+        {
+          "type": "section",
+          "render": "<% ! empty flowVariables.viaList %>",
+          "children": [
+            {
+              "children": [
+                {
+                  "type": "section",
+                  "columnWidthRatios": [
+                    0.6,
+                    0.4
+                  ],
+                  "children": [
+                    {
+                      "type": "section",
+                      "children": [
+                        {
+                          "type": "section",
+                          "title": "Expense Report Details",
+                          "horizontal": true,
+                          "columnWidthRatios": [
+                            0.33,
+                            0.33,
+                            0.33
+                          ],
+                          "children": [
+                            {
+                              "type": "section",
+                              "horizontal": true,
+                              "children": [
+                                {
+                                  "type": "date",
+                                  "id": "travelDate",
+                                  "label": "Travel Date",
+                                  "datePrecision": "DAY",
+                                  "enabled": "false",
+                                  "value": "<% flowVariables.departureDate %>"
+                                },
+                                {
+                                  "type": "richText",
+                                  "aiPrompt": {
+                                    "buttons": [
+                                      {
+                                        "label": "Generate Text",
+                                        "prompt": "<% Generate a sample text %>"
+                                      }
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "type": "section",
+                              "horizontal": true,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "enabled": "false",
+                                  "id": "reason",
+                                  "label": "Business Purpose",
+                                  "value": "<% flowVariables.searchParamReason %>"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "section",
+                              "horizontal": true,
+                              "children": [
+                                {
+                                  "type": "number",
+                                  "fractionDigits": 2,
+                                  "label": "Rate",
+                                  "id": "item",
+                                  "enabled": "false",
+                                  "value": "<% site.appProperties.mileageRate %>"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "horizontal": true,
+                      "title": "Map Search Options",
+                      "columnWidthRatios": [
+                        0.33,
+                        0.33,
+                        0.33
+                      ],
+                      "children": [
+                        {
+                          "type": "section",
+                          "children": [
+                            {
+                              "type": "checkBox",
+                              "id": "tollParam",
+                              "label": "Avoid Tolls",
+                              "visible": "true",
+                              "value": "<% flowVariables.viaList.avoidTolls %>",
+                              "enabled": "false"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "section",
+                          "children": [
+                            {
+                              "type": "checkBox",
+                              "id": "hiWayParam",
+                              "label": "Avoid Highway",
+                              "visible": "true",
+                              "value": "<% flowVariables.viaList.avoidHiWay %>",
+                              "enabled": "false"
+                            },
+                            {
+                              "type": "hidden",
+                              "id": "hiWayParamUrl",
+                              "value": " <% string:trim(flowVariables.viaList.avoidHiWay ? '&avoid=highways' : '') %>"
+                            },
+                            {
+                              "type": "hidden",
+                              "id": "tollParamUrl",
+                              "value": "<% string:trim(flowVariables.viaList.avoidTolls ? '&avoid=tolls' : '') %>"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "section",
+                          "children": [
+                            {
+                              "type": "checkBox",
+                              "id": "roundTrip",
+                              "label": "Round Trip",
+                              "value": "<% flowVariables.viaList.roundTrip %>",
+                              "enabled": "false"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "horizontal": true,
+                      "columnWidthRatios": [
+                        0.8,
+                        0.2
+                      ],
+                      "children": [
+                        {
+                          "type": "section",
+                          "title": "Calculated Distances for Route",
+                          "children": [
+                            {
+                              "id": "instruction",
+                              "type": "richText",
+                              "enabled": "false",
+                              "value": "<b><u>Instructions:</u> </b> Exclude any personal legs of journey from the reimbursable amount by clicking the Personal Expense Checkbox in the grid below."
+                            },
+                            {
+                              "type": "grid",
+                              "id": "viaGrid",
+                              "gridType": "LIST",
+                              "helpText": "This is instructions placeholder",
+                              "isArrayOutBinding": "true",
+                              "rows": "<% flowVariables.viaList.place %>",
+                              "rowVariableName": "rowData",
+                              "indexVariableName": "rowIndex",
+                              "doNotAdd": true,
+                              "doNotRemove": true,
+                              "columns": [
+                                {
+                                  "type": "column",
+                                  "columnId": "lineNo",
+                                  "label": "Route",
+                                  "cellTemplate": {
+                                    "type": "fieldSet",
+                                    "children": [
+                                      {
+                                        "type": "hidden",
+                                        "id": "indx",
+                                        "value": "<% rowIndex %>"
+                                      },
+                                      {
+                                        "type": "hidden",
+                                        "id": "getRouteNew",
+                                        "value": "<% return distanceCalc.invoke({'origins': rowData.item, 'index': rowIndex}); %>",
+                                        "_value": "<% return getRouteNewData(item, rowIndex) %>"
+                                      },
+                                      {
+                                        "type": "hidden",
+                                        "value": "<% getRouteNew.value['origin_addresses'][0] %>",
+                                        "id": "origId",
+                                        "enabled": "false"
+                                      },
+                                      {
+                                        "type": "hidden",
+                                        "id": "destinationId",
+                                        "enabled": "false",
+                                        "value": "<% getRouteNew.value['destination_addresses'][0] %>"
+                                      },
+                                      {
+                                        "type": "richText",
+                                        "value": "<% origId.value %> <% ! empty destinationId.value ? '→ ' + destinationId.value : '' %>",
+                                        "id": "origIdText",
+                                        "enabled": "false"
+                                      },
+                                      {
+                                        "type": "number",
+                                        "enabled": "false",
+                                        "_comment": "convert to miles if needed",
+                                        "value": "<% site.appProperties.unit == 'imperial' ? number:toBigDecimal((getRouteNew.value.rows[0].elements[0].distance.value * 0.00062137), 1, 'HALF_UP') :  (number:toBigDecimal((getRouteNew.value.rows[0].elements[0].distance.value / 1000), 1, 'HALF_UP')) %>",
+                                        "id": "distanceNum",
+                                        "visible": "false",
+                                        "fractionDigits": 1
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "type": "column",
+                                  "columnId": "personCols",
+                                  "label": "Personal Expense",
+                                  "cellTemplate": {
+                                    "trueLabel": "Personal",
+                                    "falseLabel": "No",
+                                    "type": "checkBox",
+                                    "id": "personx",
+                                    "enabled": "<% size(flowVariables.viaList.place) != '2' %>",
+                                    "visible": "<% ! empty destinationId.value %>",
+                                    "onChange": "<% updageGrid({'index':indx.value, 'value':self.value, 'miles':distanceNum.value}); %>"
+                                  }
+                                },
+                                {
+                                  "type": "column",
+                                  "subtotal": "true",
+                                  "columnId": "businessCol",
+                                  "label": "Business (<% getUnits() %>)",
+                                  "cellTemplate": {
+                                    "type": "number",
+                                    "fractionDigits": 1,
+                                    "id": "business",
+                                    "value": "<% personx.value ? '0.0' : distanceNum.value %>",
+                                    "visible": "<% ! empty distanceNum.value %>",
+                                    "enabled": "false"
+                                  }
+                                },
+                                {
+                                  "type": "column",
+                                  "columnId": "personalCol",
+                                  "subtotal": "true",
+                                  "label": "Personal (<% site.appProperties.unit == 'imperial' ? 'Miles' : 'Kilometers' %>)",
+                                  "cellTemplate": {
+                                    "type": "number",
+                                    "fractionDigits": 1,
+                                    "id": "personTot",
+                                    "value": "<% personx.value ? distanceNum.value : '0.0'  %>",
+                                    "visible": "<% ! empty distanceNum.value %>",
+                                    "enabled": "false"
+                                  }
+                                },
+                                {
+                                  "type": "column",
+                                  "columnId": "expenseAmountCol",
+                                  "subtotal": "true",
+                                  "label": "<% 'Expense Amount (' + site.appProperties.expItemCurrency + ')' %>",
+                                  "cellTemplate": {
+                                    "type": "number",
+                                    "enabled": "false",
+                                    "visible": "<% ! empty destinationId.value %>",
+                                    "fractionDigits": 2,
+                                    "id": "expenseAmount",
+                                    "_comment": " Round down fractions : adjust per Expense Policy",
+                                    "value": "<% personx.value ? '0.00' :  number:toBigDecimal(( site.appProperties.mileageRate *  business.value), 2, 'DOWN')  %>"
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "section",
+                          "horizontal": true,
+                          "children": [
+                            {
+                              "type": "fieldSet",
+                              "children": [
+                                {
+                                  "type": "number",
+                                  "enabled": "false",
+                                  "visible": "false",
+                                  "fractionDigits": 2,
+                                  "label": "Total",
+                                  "id": "TotalExpensed",
+                                  "value": "<% viaGrid.getSubtotal('expenseAmountCol') %>"
+                                },
+                                {
+                                  "type": "hidden",
+                                  "label": "Routes",
+                                  "id": "allRows",
+                                  "value": "<% string:formatListToString('-', list:mapAttribute(flowVariables.viaList.place, 'item')) %>"
+                                },
+                                {
+                                  "type": "hidden",
+                                  "id": "markers",
+                                  "label": "markers",
+                                  "value": "<% flowVariables.viaList.roundTrip == true ? string:formatListToString('%7C', list:mapAttribute(flowVariables.viaList.place, 'item')) + '%7C' + flowVariables.viaList.place[0].item : string:formatListToString('%7C', list:mapAttribute(flowVariables.viaList.place, 'item'))  %>"
+                                },
+                                {
+                                  "type": "hidden",
+                                  "id": "viaD",
+                                  "label": "vialList",
+                                  "value": "<% flowVariables.viaList %>"
+                                },
+                                {
+                                  "type": "hidden",
+                                  "id": "markerPath",
+                                  "label": "markerPath",
+                                  "value": "<% flowVariables.viaList.roundTrip == true ? string:formatListToString('%7C', list:mapAttribute(flowVariables.markerList.place, 'item')) + '%7C' + flowVariables.markerList.place[0].item : string:formatListToString('%7C', list:mapAttribute(flowVariables.markerList.place, 'item'))  %>"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "title": "Directions",
+                  "_comment": "This is the section for displaying map or maplink",
+                  "horizontal": "false",
+                  "children": [
+                    {
+                      "type": "text",
+                      "visible": "<% site.appProperties.isDebug %>",
+                      "id": "wayPoints",
+                      "value": "<% size(flowVariables.viaList.place) == 2 && flowVariables.viaList.roundTrip != true ? ''   : string:substring(markers.value, string:indexOf(markers.value, '%7C', 0)+3, string:lastIndexOf(markers.value, '%7C', string:length(markers.value)) )   %>",
+                      "label": "Via test 1"
+                    },
+                    {
+                      "type": "hidden",
+                      "label": "Route Map",
+                      "enabled": "false",
+                      "id": "startId",
+                      "value": "<% flowVariables.viaList.roundTrip == true ? allRows.value + '-' + flowVariables.viaList.place[0].item  : allRows.value %>"
+                    },
+                    {
+                      "type": "hidden",
+                      "id": "getDirections",
+                      "value": "<% getDirectionsData() %>"
+                    },
+                    {
+                      "type": "fieldSet",
+                      "collapsible": "false",
+                      "initializeCollapsed": "false",
+                      "children": [
+                        {
+                          "type": "loop",
+                          "on": "<% getDirections.value.routes[0].legs %>",
+                          "as": "getLegs",
+                          "children": [
+                            {
+                              "collapsible": "true",
+                              "initializeCollapsed": "true",
+                              "type": "fieldSet",
+                              "title": "<% getLegs['start_address'] %> -> <% getLegs['end_address'] %> <% site.appProperties.unit == 'imperial' ?  number:toBigDecimal((getLegs.distance.value * 0.00062137)  , 1, 'HALF_UP') :  (number:toBigDecimal((getLegs.distance.value / 1000), 1, 'HALF_UP')) %> <% site.appProperties.unit == 'imperial' ? 'Miles' : 'Kilometers' %> Duration: <% getLegs.duration.text %>",
+                              "children": [
+                                {
+                                  "type": "loop",
+                                  "on": "<% getLegs.steps %>",
+                                  "as": "getSteps",
+                                  "children": [
+                                    {
+                                      "type": "richText",
+                                      "enabled": "false",
+                                      "value": "<span style='margin-left:80px;'><% getSteps.distance.text %> - <% getSteps['html_instructions'] %>  </span>"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "hidden",
+                      "id": "routeLine",
+                      "value": "<% getDirections.value.routes[0]['overview_polyline'].points %>",
+                      "label": "overview"
+                    },
+                    {
+                      "type": "section",
+                      "title": "Map",
+                      "visible": "true",
+                      "children": [
+                        {
+                          "type": "readOnlyText",
+                          "visible": "<% site.appProperties.isDebug %>",
+                          "id": "wayPointsVal",
+                          "value": "<% wayPoints.value %>",
+                          "label": "Waypoints"
+                        },
+                        {
+                          "type": "readOnlyText",
+                          "visible": "<% site.appProperties.isDebug %>",
+                          "id": "markersVal",
+                          "value": "<% markers.value %>",
+                          "label": "Markers"
+                        },
+                        {
+                          "type": "image",
+                          "imageUri": "https://maps.googleapis.com/maps/api/staticmap?size=600x600&path=color:0x0000ff%7Cweight:4%7Cenc:<% getDirections.value.routes[0]['overview_polyline'].points.urlEncode() %>&maptype=roadmap&markers=color:green%7Clabel:S%7C<% flowVariables.viaList.place[0].item %>&markers=color:blue%7Clabel:W%7C<% wayPoints.value %>&markers=color:red%7Clabel:E%7C<% getDestination() %>&region=<% site.appProperties.gmapRegion %>&key=<% site.appProperties.mapVendorKey %>",
+                          "id": "gmapStatic",
+                          "label": "External Link"
+                        },
+                        {
+                          "id": "instructionx",
+                          "type": "richText",
+                          "enabled": "false",
+                          "value": "Legend: S = Start/Round, E = End, W = Waypoints<br/>"
+                        },
+                        {
+                          "type": "externalLink",
+                          "descriptor": "Link to  google maps  (For reference - mileage may vary due to traffic and alternate routes)",
+                          "_comment": "Map as External Link:  The distance computation on this link is not accurate as the one from the paid API - so this is only for references ",
+                          "url": "https://www.google.com/maps/dir/?api=1&origin=<% flowVariables.viaList.place[0].item %>&destination=<% getDestination() %>&waypoints=<% wayPoints.value %>&travelmode=driving"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "editButtonBar",
+                  "editButtons": [
+                    {
+                      "type": "dropdownEditButton",
+                      "label": "Submit",
+                      "id": "submitButton",
+                      "sortOrder": "a",
+                      "buttonType": "PRIMARY",
+                      "render": "<% ! empty flowVariables.viaList && TotalExpensed.value > 0 %>",
+                      "dropDown": {
+                        "id": "submitBtn",
+                        "type": "dropdown",
+                        "label": "Submit",
+                        "render": "<% ! empty flowVariables.viaList && TotalExpensed.value > 0 %>",
+                        "instanceList": [
+                          {
+                            "id": "1",
+                            "descriptor": "Create Expense Report"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "dropdownEditButton",
+                      "sortOrder": "b",
+                      "label": "Back To Search",
+                      "id": "searchAgainButton",
+                      "buttonType": "SECONDARY",
+                      "dropDown": {
+                        "id": "searchAgainBtn",
+                        "type": "dropdown",
+                        "label": "Search Again",
+                        "instanceList": [
+                          {
+                            "id": "1",
+                            "descriptor": "Modify Search"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "horizontal": true,
+              "type": "section"
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "render": "<% empty flowVariables.viaList %>",
+          "title": "You have reached this page in error.",
+          "children": [
+            {
+              "type": "richText",
+              "enabled": "false",
+              "value": "<h2> <b> Press Cancel to exit </b></h2>"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

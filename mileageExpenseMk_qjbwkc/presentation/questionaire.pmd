@@ -1,0 +1,134 @@
+{
+  "id": "questionaire",
+  "endPoints": [ ],
+  "presentation": {
+    "pageType": "EDIT",
+    "title": {
+      "type": "title",
+      "label": "Questionnaire Page"
+    },
+    "body": {
+      "type": "areaLayout",
+      "layout": "left",
+      "primaryArea": [
+        {
+          "type": "section",
+          "children": [
+            {
+              "type": "text",
+              "id": "openingQuestion",
+              "label": "Please answer the following question:",
+              "value": "A conflict of interest is a situation where your personal interests, relationships, or outside activities could affect, or appear to affect, your ability to make fair and objective decisions at work.  In such situations what is best for the company may be different from what might benefit you or a family member of someone close to you personally.  Based on your review of AstraZeneca’s Conflict of Interest Standard and SOPs, do you believe you have a conflict or potential a conflict of interest to declare?",
+              "enabled": false
+            },
+            {
+              "type": "radioGroup",
+              "id": "selectionRadioGroup",
+              "label": "Your choice:",
+              "required": true,
+              "instanceList": [
+                {
+                  "id": "yes",
+                  "descriptor": "Yes"
+                },
+                {
+                  "id": "no",
+                  "descriptor": "No"
+                }
+              ],
+              "selectedValues": "<% ['no'] %>"
+            }
+          ]
+        },
+        {
+          "type": "instanceList",
+          "id": "multiInstanceList",
+          "label": "Drop down options (choose all that apply)",
+          "multiSelect": true,
+          "values": "<% [
+                        { 'id': 'test1', 'descriptor': 'Situation involving another AZ/ALX employee\tQ2' },
+                        { 'id': 'test2', 'descriptor': 'Situation involving relationship with vendor/business AZ does business with' },
+                        { 'id': 'test3', 'descriptor': 'Situation where you serve on Board' },
+                        { 'id': 'test4', 'descriptor': 'Situation involving a customer (HCP, market access, government, etc.)' }
+                    ] %>",
+          "visible": "<% selectionRadioGroup.selectedEntries[0].id == 'no' %>"
+        }
+      ],
+      "secondaryArea": [
+        {
+          "type": "section",
+          "children": [
+            {
+              "type": "text",
+              "id": "openingQuestion",
+              "label": "Situation involving another AZ/ALX employee",
+              "value": "Do you currently have, or have you previously had, a personal relationship with another AstraZeneca employee who you also have a work relationship with?",
+              "enabled": false
+            },
+            {
+              "type": "radioGroup",
+              "id": "selectionRadioGroup",
+              "label": "Your choice:",
+              "required": true,
+              "instanceList": [
+                {
+                  "id": "yes",
+                  "descriptor": "Yes"
+                },
+                {
+                  "id": "no",
+                  "descriptor": "No"
+                }
+              ],
+              "selectedValues": "<% ['no'] %>"
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "children": [
+            {
+              "type": "text",
+              "id": "openingQuestion",
+              "label": "Situation involving relationship with vendor/business AZ does business with\tQ1",
+              "value": "Do you have past or current, private business connections or a personal relationship with a third-party doing business with AstraZeneca?",
+              "enabled": false
+            },
+            {
+              "type": "radioGroup",
+              "id": "selectionRadioGroup",
+              "label": "Your choice:",
+              "required": true,
+              "instanceList": [
+                {
+                  "id": "yes",
+                  "descriptor": "Relative/family member/close friend["
+                },
+                {
+                  "id": "no",
+                  "descriptor": "Former Employee of 3rd Party"
+                },
+                {
+                  "id": "new",
+                  "descriptor": "Other"
+                }
+              ],
+              "selectedValues": "<% ['no'] %>"
+            },
+            {
+              "type": "richText",
+              "aiPrompt": {
+                "buttons": [
+                  {
+                    "label": "Generate Text",
+                    "prompt": "<% Generate a sample text %>"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

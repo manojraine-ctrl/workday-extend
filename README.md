@@ -20,7 +20,7 @@ include `appManifest.json` and its normal source directories such as
 
 - `WDCLI_ACCOUNT`: Workday Developer Site account/company short ID.
 - `WORKDAY_APP_DIR`: Relative directory containing the retrieved app. It
-  defaults to `.` when the app is at the repository root.
+  defaults to `mileageExpenseMk_qjbwkc` for this repository.
 - `EXPECTED_WDCLI_VERSION`: Optional; defaults to `1.8.43`.
 
 ### Temporary authentication model

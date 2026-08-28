@@ -1,0 +1,143 @@
+{
+  "id": "confirmation",
+  "script": "<%
+  var getPanels = function() {
+    var panelValue = [{'data': '1', 'id': '1'}];
+    return panelValue;
+  };
+
+  %>",
+  "presentation": {
+    "pageType": "view",
+    "body": {
+      "type": "section",
+      "horizontal": true,
+      "columnWidthRatios": [
+        0.7,
+        0.3
+      ],
+      "children": [
+        {
+          "type": "section",
+          "children": [
+            {
+              "type": "section",
+              "children": [
+                {
+                  "type": "panelList",
+                  "render": "<% ! empty flowVariables.expReportId %>",
+                  "title": "Success! Expense Report Created",
+                  "panels": "<% getPanels() %>",
+                  "children": [
+                    {
+                      "type": "section",
+                      "horizontal": true,
+                      "title": "<% flowVariables.expenseReportResponse.descriptor %>",
+                      "columnWidthRatios": [
+                        0.4,
+                        0.4,
+                        0.2
+                      ],
+                      "children": [
+                        {
+                          "type": "section",
+                          "children": [
+                            {
+                              "type": "text",
+                              "value": "<% flowVariables.expenseReportResponse.payee.descriptor %>",
+                              "label": "Payee"
+                            },
+                            {
+                              "type": "text",
+                              "value": "<% flowVariables.expenseReportResponse.worktag.descriptor %>",
+                              "label": "Worktag"
+                            },
+                            {
+                              "type": "text",
+                              "value": "<% flowVariables.expenseReportResponse.company.descriptor %>",
+                              "label": "Company"
+                            },
+                            {
+                              "type": "text",
+                              "label": "Business Travel",
+                              "value": "<% flowVariables.expensedDistance %> <% site.appProperties.unit == 'imperial' ? 'Miles' : 'Kilometers' %>"
+                            },
+                            {
+                              "type": "text",
+                              "label": "Personal Travel",
+                              "value": "<% flowVariables.personalDistance %> <% site.appProperties.unit == 'imperial' ? 'Miles' : 'Kilometers' %>"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "section",
+                          "children": [
+                            {
+                              "type": "text",
+                              "value": "<% flowVariables.expenseLineResponse.expenseItem.descriptor %>",
+                              "label": "Expense Item"
+                            },
+                            {
+                              "showCurrencySymbol": "true",
+                              "label": "Amount",
+                              "type": "currency",
+                              "currencyCode": "<% flowVariables.expenseLineResponse.totalAmount.currency %>",
+                              "value": "<% flowVariables.expenseLineResponse.totalAmount.value %>",
+                              "enabled": "false"
+                            },
+                            {
+                              "type": "date",
+                              "label": "Report Date",
+                              "datePrecision": "DAY",
+                              "value": "<% flowVariables.expenseReportResponse.creationDate %>"
+                            },
+                            {
+                              "type": "date",
+                              "label": "Line Date",
+                              "datePrecision": "DAY",
+                              "value": "<% flowVariables.expenseLineResponse.date %>"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "textArea",
+              "value": "<% flowVariables.expenseLineResponse.memo %>",
+              "label": "Expense Line Memo"
+            },
+            {
+              "type": "richText",
+              "value": "<span style='color: #005dba'><u>Instructions:</u> To submit this expense report or do further edits click on the expense report id below and navigate to the expense report page.</span>"
+            },
+            {
+              "type": "instanceList",
+              "helpText": "Click related action to edit or submit the report",
+              "instanceList": [
+                {
+                  "descriptor": "  <% flowVariables.expenseReportResponse.descriptor %>",
+                  "iconId": "<% iconIdResolver:resolveIconId('Awaiting Action') %>",
+                  "wid": "<% flowVariables.expReportId %>",
+                  "id": "<% flowVariables.expReportId %>"
+                }
+              ]
+            },
+            {
+              "type": "button",
+              "action": "SECONDARY",
+              "label": "New Mileage Expense",
+              "taskReference": {
+                "type": "taskReference",
+                "taskId": "root"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

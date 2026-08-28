@@ -1,0 +1,53 @@
+{
+  "id": "editPageWithQuestionAndInstanceList",
+  "endPoints": [ ],
+  "presentation": {
+    "pageType": "EDIT",
+    "title": {
+      "type": "title",
+      "label": "Questionnaire Page"
+    },
+    "body": {
+      "type": "section",
+      "children": [
+        {
+          "type": "text",
+          "id": "openingQuestion",
+          "label": "Please answer the following question:",
+          "value": "Do you want to select an item from a list?",
+          "enabled": false
+        },
+        {
+          "type": "radioGroup",
+          "id": "selectionRadioGroup",
+          "label": "Your choice:",
+          "required": true,
+          "instanceList": [
+            {
+              "id": "yes",
+              "descriptor": "Yes"
+            },
+            {
+              "id": "no",
+              "descriptor": "No"
+            }
+          ],
+          "selectedValues": "<% ['no'] %>"
+        },
+        {
+          "type": "instanceList",
+          "id": "multiInstanceList",
+          "label": "Select items from the list:",
+          "multiSelect": true,
+          "values": "<% [
+                        { 'id': 'test1', 'descriptor': 'Test 1' },
+                        { 'id': 'test2', 'descriptor': 'Test 2' },
+                        { 'id': 'test3', 'descriptor': 'Test 3' },
+                        { 'id': 'test4', 'descriptor': 'Test 4' }
+                    ] %>",
+          "visible": "<% selectionRadioGroup.selectedEntries[0].id == 'no' %>"
+        }
+      ]
+    }
+  }
+}

@@ -19,8 +19,8 @@ include `appManifest.json` and its normal source directories such as
 ### Repository variables
 
 - `WDCLI_ACCOUNT`: Workday Developer Site account/company short ID.
-- `WORKDAY_APP_DIR`: Relative app directory; currently defaults to
-  `vehicleRegistration`. Use `.` when the app is at the repository root.
+- `WORKDAY_APP_DIR`: Relative directory containing the retrieved app. It
+  defaults to `.` when the app is at the repository root.
 - `EXPECTED_WDCLI_VERSION`: Optional; defaults to `1.8.43`.
 
 ### Temporary authentication model

@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WORKDAY_APP_DIR: ${{ vars.WORKDAY_APP_DIR || 'vehicleRegistration' }}
+  WORKDAY_APP_DIR: ${{ vars.WORKDAY_APP_DIR || '.' }}
   WDCLI_ACCOUNT: ${{ vars.WDCLI_ACCOUNT }}
   EXPECTED_WDCLI_VERSION: ${{ vars.EXPECTED_WDCLI_VERSION || '1.8.43' }}
 

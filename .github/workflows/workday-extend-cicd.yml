@@ -1,24 +1,15 @@
 name: Workday Extend WDCLI CI/CD
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - appManifest.json
-      - attributes/**
-      - cards/**
-      - model/**
-      - orchestration/**
-      - presentation/**
   push:
     branches: [main]
     paths:
-      - appManifest.json
-      - attributes/**
-      - cards/**
-      - model/**
-      - orchestration/**
-      - presentation/**
+      - "**/appManifest.json"
+      - "**/attributes/**"
+      - "**/cards/**"
+      - "**/model/**"
+      - "**/orchestration/**"
+      - "**/presentation/**"
   workflow_dispatch:
     inputs:
       upload_to_apphub:
@@ -31,21 +22,21 @@ permissions:
   contents: read
 
 # WDCLI stores authentication locally. Do not allow concurrent jobs to share it.
+# Pull-request execution is intentionally disabled while a saved developer-user
+# session is used on the runner.
 concurrency:
   group: workday-extend-wdcli
   cancel-in-progress: false
 
 env:
-  WORKDAY_APP_DIR: ${{ vars.WORKDAY_APP_DIR || '.' }}
+  WORKDAY_APP_DIR: ${{ vars.WORKDAY_APP_DIR || 'vehicleRegistration' }}
   WDCLI_ACCOUNT: ${{ vars.WDCLI_ACCOUNT }}
   EXPECTED_WDCLI_VERSION: ${{ vars.EXPECTED_WDCLI_VERSION || '1.8.43' }}
-  WDCLI_CLIENT_ID: ${{ secrets.WDCLI_CLIENT_ID }}
-  WDCLI_CLIENT_SECRET: ${{ secrets.WDCLI_CLIENT_SECRET }}
 
 jobs:
   validate_and_package:
     name: Validate and package
-    runs-on: [self-hosted, windows, x64, workday-wdcli]
+    runs-on: [self-hosted, windows, x64, workday-wdcli, workday-developer-session]
     timeout-minutes: 15
     defaults:
       run:
@@ -119,17 +110,24 @@ jobs:
             throw "Invalid JSON-based Workday files:`n$($invalidFiles -join "`n")"
           }
 
-      - name: Authenticate to Workday Developer Site
+      - name: Verify pre-authenticated Developer Site session
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:WDCLI_CLIENT_ID) -or
-              [string]::IsNullOrWhiteSpace($env:WDCLI_CLIENT_SECRET)) {
-            throw "Configure WDCLI_CLIENT_ID and WDCLI_CLIENT_SECRET as GitHub Actions secrets."
+          wdcli account switch $env:WDCLI_ACCOUNT --ci --format json | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            throw "The saved Developer Site session cannot access account $env:WDCLI_ACCOUNT. Log in interactively on the runner with 'wdcli auth login'."
           }
 
-          wdcli auth login --system-user
+          $identityOutput = wdcli whoami --ci --format json | Out-String
           if ($LASTEXITCODE -ne 0) {
-            throw "WDCLI system-user authentication failed."
+            throw "No valid Developer Site session is available to the runner. Log in interactively on the runner with 'wdcli auth login'."
           }
+
+          $identity = $identityOutput | ConvertFrom-Json
+          if ($identity.organizationShortId -ne $env:WDCLI_ACCOUNT) {
+            throw "WDCLI is authenticated to $($identity.organizationShortId), not $env:WDCLI_ACCOUNT."
+          }
+
+          "Authenticated as $($identity.user) for $($identity.organizationName) ($($identity.organizationShortId))."
 
       - name: Run Workday validation
         run: |
@@ -164,12 +162,6 @@ jobs:
           "- Package SHA-256: ``$archiveHash``" >> $env:GITHUB_STEP_SUMMARY
           "- No source was uploaded and no tenant was changed." >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Log out
-        if: always()
-        run: |
-          wdcli auth logout
-          exit 0
-
   upload_to_apphub:
     name: Upload and build in App Hub
     needs: validate_and_package
@@ -177,7 +169,7 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       inputs.upload_to_apphub == true &&
       github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, windows, x64, workday-wdcli]
+    runs-on: [self-hosted, windows, x64, workday-wdcli, workday-developer-session]
     timeout-minutes: 15
     defaults:
       run:
@@ -211,12 +203,24 @@ jobs:
             throw "Expected WDCLI $env:EXPECTED_WDCLI_VERSION but found: $versionOutput"
           }
 
-      - name: Authenticate to Workday Developer Site
+      - name: Verify pre-authenticated Developer Site session
         run: |
-          wdcli auth login --system-user
+          wdcli account switch $env:WDCLI_ACCOUNT --ci --format json | Out-Null
           if ($LASTEXITCODE -ne 0) {
-            throw "WDCLI system-user authentication failed."
+            throw "The saved Developer Site session cannot access account $env:WDCLI_ACCOUNT."
           }
+
+          $identityOutput = wdcli whoami --ci --format json | Out-String
+          if ($LASTEXITCODE -ne 0) {
+            throw "No valid Developer Site session is available to the runner."
+          }
+
+          $identity = $identityOutput | ConvertFrom-Json
+          if ($identity.organizationShortId -ne $env:WDCLI_ACCOUNT) {
+            throw "WDCLI is authenticated to $($identity.organizationShortId), not $env:WDCLI_ACCOUNT."
+          }
+
+          "Authenticated as $($identity.user) for $($identity.organizationName) ($($identity.organizationShortId))."
 
       - name: Upload source and wait for App Hub build
         run: |
@@ -239,9 +243,3 @@ jobs:
           "### Workday App Hub build completed" >> $env:GITHUB_STEP_SUMMARY
           "- App: ``$env:APP_REFERENCE_ID``" >> $env:GITHUB_STEP_SUMMARY
           "- No Workday tenant deployment was performed." >> $env:GITHUB_STEP_SUMMARY
-
-      - name: Log out
-        if: always()
-        run: |
-          wdcli auth logout
-          exit 0
